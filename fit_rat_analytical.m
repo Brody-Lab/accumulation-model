@@ -1,43 +1,72 @@
 function [fit, data, savefile] = fit_rat_analytical(ratnames, varargin)
-% fit_rat_analytical(ratnames)
-% Script for fitting Bing's accumulation model to the dynamic clicks task behavior
-% input:
+% function [fit, data, savefile] = fit_rat_analytical(ratnames, varargin)
+%
+% Fit an unbounded variant of Bing's accumulation model to behavior data
+% 
+% INPUTS
 % ratnames      a list of ratnames
+% 
+% OUTPUTS
+% fit           structure containing the fitting results. 
+%               The most important field is fit.final, containing
+%               the best fit parameters.
+% 
+% OPTIONAL INPUTS
+% p0            initial parameter values
+% data_dir      directory containing the data files
+% results_dir   directory to save the results
+% dosave        whether to save the results
+% reload        whether to reload the last fit
+% save_suffix   suffix to append to the save file
+% use_param     logical vector indicating which parameters to fit
+% param_default default values for the parameters
+% vectorize     whether to use the vectorized version of the model
+% param_names   names of the parameters
+% prior_mean    mean of the prior distribution for each parameter. If nan, no prior is used for that parameter
+% prior_var     variance of the prior distribution for each parameter.
+% use_priors    whether to use the priors
+% lower_bound   lower bound for each parameter
+% upper_bound   upper bound for each parameter
+% overwrite     whether to overwrite existing results
+% TolFun        tolerance for the function value
+% TolX          tolerance for the parameter values
+% skipOptimization whether to skip the optimization step
 %
-% searches for mat files with each ratname in the input list in the data directory specified
-% by data_dir
-%
-% if no input is given, loads a synthetic dataset
+% EXAMPLE
+% data_dir = <path/to/data>
+% results_dir = <path/to/results>
+% fit = fit_rat_analytical('B123', 'data_dir', data_dir, 'results_dir', results_dir)
 
+% Setup default input arguments
 p = inputParser();
 addParameter(p, 'p0',[]);
-addParameter(p, 'data_dir','');
-addParameter(p, 'results_dir','');
-addParameter(p, 'dosave',true);
-addParameter(p, 'reload',true);
+addParameter(p, 'data_dir', '');
+addParameter(p, 'results_dir', '');
+addParameter(p, 'dosave', true);
+addParameter(p, 'reload', true);
 addParameter(p, 'save_suffix','');
-addParameter(p, 'use_param',true(1,8));
+addParameter(p, 'use_param', true(1,8));
 addParameter(p, 'param_default',[]);
-addParameter(p, 'vectorize',true);
-addParameter(p, 'param_names', {'\lambda', '\sigma_a', '\sigma_s', '\sigma_i', ...
-                                            '\phi',  '\tau', 'bias', 'lapse'});
-addParameter(p,'prior_mean', [nan 0 nan .5    nan nan nan nan]);%[nan 0 nan 0 nan .1059 nan nan]);
-addParameter(p,'prior_var',  [nan 5.39 nan 1.87 nan nan nan nan]);%[nan 5.39 nan 1.87 nan .01 nan nan]);
+addParameter(p, 'vectorize', true);
+addParameter(p, 'param_names', {'\lambda', '\sigma_a', '\sigma_s', '\sigma_i', '\phi',  '\tau', 'bias', 'lapse'});
+addParameter(p,'prior_mean',    [  0    0  nan   .5 .17 .11 0   .05]);%  [nan    0 nan 0    nan .1059 nan nan]);
+addParameter(p,'prior_var',     [1.3  5.39 nan 1.87 .01 .01 .21 .01]);%[nan 5.39 nan 1.87 nan .01 nan nan]);
 addParameter(p,'use_priors', 1);
-addParameter(p, 'lower_bound', [ -40, 0,   0,    0,  0, 0.01, -20, 0]);
-addParameter(p, 'upper_bound', [ +40, 200, 5000, 30, 1.2, 5, +20, 1]);
-addParameter(p, 'overwrite',0)
-addParameter(p, 'TolFun',1e-13)
-addParameter(p, 'TolX',1e-13)
-addParameter(p, 'skipOptimization',false)
+addParameter(p, 'lower_bound', [ -5,   0,   0,   0,  0, 0.01, -5, 0]);
+addParameter(p, 'upper_bound', [ +5,  50,  50,  30, 1.2,   5, +5, .2]);
+addParameter(p, 'overwrite', 0)
+addParameter(p, 'TolFun', 1e-13)
+addParameter(p, 'TolX', 1e-13)
+addParameter(p, 'skipOptimization', false)
 parse(p,varargin{:})
+
 par         = p.Results;
 data_dir    = par.data_dir;
 results_dir = par.results_dir;
 save_suffix = par.save_suffix;
 skipOptimization = par.skipOptimization;
 
-% Loop over the rats if desired
+% If ratnames are provided as a list, fit each rat in turn
 if iscell(ratnames)
     nrats = length(ratnames);
     for rr = nrats:-1:1
@@ -141,7 +170,7 @@ bf_full = p0;
 % Find the best fit parameters 
 tfit = nan;
 if ~skipOptimization
-    disp(['Starting fit for rat ' ratname])
+    % disp(['\nStarting fit for rat ' ratname])
     tic
     [xbf, f, exitflag, output, ~, grad, hessian] = ...
         fmincon(nllfun, p0, ...
